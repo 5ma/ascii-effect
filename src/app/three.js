@@ -40,11 +40,11 @@ export default class Three {
 
   setupSettings() {
     this.settings = {
-      gamma: 2.2,
+      gamma: 4.5,
       charIndex: 0
     };
     this.gui = new GUI();
-    this.gui.add(this.settings, 'gamma', 0.5, 5, 0.1).onChange((value) => {
+    this.gui.add(this.settings, 'gamma', 0.5, 7, 0.1).onChange((value) => {
       this.uGamma.value = value;
     });
     this.gui.add(this.settings, 'charIndex', 0, this.length - 1, 1).onChange((value) => {
@@ -69,7 +69,14 @@ export default class Three {
     ctx.textAlign = 'center';
 
     for (let i = 0; i < this.length; i++) {
-      ctx.fillText(dict[i], cellSize * (i + 0.5), 45);
+      if (i > 50) {
+        for (let j = 0; j < 6; j++) {
+          ctx.filter = `blur(${j * 1}px)`;
+          ctx.fillText(dict[i], cellSize * (i + 0.5), 46);
+        }
+      }
+      ctx.filter = 'none';
+      ctx.fillText(dict[i], cellSize * (i + 0.5), 46);
     }
 
     let asciiTexture = new THREE.CanvasTexture(canvas);
@@ -106,13 +113,18 @@ export default class Three {
     this.positions = new Float32Array(instances * 3);
     this.colors = new Float32Array(instances * 3);
     let uv = new Float32Array(instances * 2);
+    let random = new Float32Array(instances);
     this.instancedMesh = new THREE.InstancedMesh(this.geometry, this.material, instances);
 
     for (let i = 0; i < rows; i++) {
       for (let j = 0; j < columns; j++) {
         let index = i * columns + j;
+
         uv[index * 2 + 0] = i / (rows - 1);
         uv[index * 2 + 1] = j / (columns - 1);
+
+        random[index] = Math.pow(Math.random(), 2);
+
         this.positions[index * 3 + 0] = i * size - (size * (rows - 1)) / 2;
         this.positions[index * 3 + 1] = j * size - (size * (columns - 1)) / 2;
         this.positions[index * 3 + 2] = 0;
@@ -129,6 +141,7 @@ export default class Three {
     }
     this.instancedMesh.instanceMatrix.needsUpdate = true;
     this.geometry.setAttribute('aPixelUV', new THREE.InstancedBufferAttribute(uv, 2));
+    this.geometry.setAttribute('aRandom', new THREE.InstancedBufferAttribute(random, 1));
 
     this.scene.add(this.instancedMesh);
     console.log('this.instancedMesh', this.instancedMesh);

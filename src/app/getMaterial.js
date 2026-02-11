@@ -19,11 +19,12 @@ import {
   varying,
   vec2,
   vec3,
-  vec4
+  vec4,
+  floor
 } from 'three/tsl';
 import * as THREE from 'three/webgpu';
 
-import portrait from '../assets/images/025Pikachu.webp?url';
+import portrait from '../assets/images/W14-1542-250713.jpg?url';
 
 const palette = ['#ffd31b', '#ff911f', '#ff2975', '#f322ff', '#8c1eff'];
 
@@ -44,15 +45,18 @@ export default function getMaterial({
   const uColor3 = uniform(color(palette[2]));
   const uColor4 = uniform(color(palette[3]));
   const uColor5 = uniform(color(palette[4]));
-  const uGamma = uniform(2.2);
+  const uGamma = uniform(1);
   const uCharIndex = uniform(0);
 
   const ascii = Fn(() => {
     const textureColor = texture(uTexture, attribute('aPixelUV'));
-    const brightness = pow(textureColor.r, uGamma);
+    const brightness = pow(textureColor.r.mul(textureColor.g).mul(textureColor.b), uGamma).add(attribute('aRandom').mul(0.02));
 
-    let charIndex = brightness.mul(length).floor();
-    let asciiUv = vec2(uv().x.div(length).add(charIndex.div(length)), uv().y);
+    let charIndex = floor(brightness.mul(length));
+    let asciiUv = vec2(
+      uv().x.div(length).add(charIndex.div(length)),
+      uv().y
+    );
     const asciiCode = texture(asciiTexture, asciiUv);
     let finalColor = uColor1;
     finalColor = mix(finalColor, uColor2, step(0.2, brightness));
@@ -61,7 +65,7 @@ export default function getMaterial({
     finalColor = mix(finalColor, uColor5, step(0.8, brightness));
 
     // return textureColor;
-    return asciiCode;
+    return asciiCode.mul(finalColor);
     // return vec4(finalColor, 1);
     // return vec4(brightness, brightness, brightness, 1);
     // return texture(uTexture, uv());
