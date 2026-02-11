@@ -33,15 +33,18 @@ export default class Three {
 
   async init() {
     await this.renderer.init();
+    this.setupSettings();
     this.render();
   }
 
   setupSettings() {
     this.settings = {
-      progress: 0
+      gamma: 2.2
     };
     this.gui = new GUI();
-    this.gui.add(this.settings, 'progress', 0, 1, 0.01).onChange(() => {});
+    this.gui.add(this.settings, 'gamma', 0.5, 5, 0.1).onChange((value) => {
+      this.uGamma.value = value;
+    });
   }
 
   addLights() {
@@ -55,7 +58,9 @@ export default class Three {
 
   addObjects() {
     // this.material = new THREE.MeshBasicMaterial({ color: 'red', wireframe: true });
-    this.material = getMaterial();
+    const { material, uGamma } = getMaterial();
+    this.material = material;
+    this.uGamma = uGamma;
 
     let rows = 50;
     let columns = 50;
