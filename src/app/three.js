@@ -4,6 +4,8 @@ import * as THREE from 'three/webgpu';
 
 import getMaterial from './getMaterial';
 
+const range = (min, max) => Math.random() * (max - min) + min;
+
 export default class Three {
   constructor(container) {
     this.scene = new THREE.Scene();
@@ -14,7 +16,7 @@ export default class Three {
     this.renderer = new THREE.WebGPURenderer();
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(this.width, this.height);
-    this.renderer.setClearColor(0xee_ee_ee, 1);
+    this.renderer.setClearColor(0x000000, 1);
 
     this.container.append(this.renderer.domElement);
     this.camera = new THREE.PerspectiveCamera(70, this.width / this.height, 0.01, 1000);
@@ -25,11 +27,35 @@ export default class Three {
     this.clock = new THREE.Clock();
     this.isPlaying = true;
 
+    this.anotherScene();
     // this.createASCIITexture();
-    this.addLights();
+    this.addLights(this.scene);
     this.addObjects();
     // WebGPU requires an async init before any render calls.
     this.setResize();
+  }
+
+  anotherScene() {
+    this.scene2 = new THREE.Scene();
+    this.camera2 = new THREE.PerspectiveCamera(70, this.width / this.height, 0.01, 400);
+    this.camera2.position.set(0, 0, 3.8);
+    this.renderTarget = new THREE.RenderTarget(this.width, this.height);
+
+    let num = 50;
+    this.cubes = [];
+    for (let i = 0; i < num; i++) {
+      let size = range(0.5, 0.9);
+      let mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(size, size, size),
+        new THREE.MeshPhysicalMaterial({ color: 'white' })
+      );
+      mesh.position.set(range(-2, 2), range(-2, 2), range(-2, 2));
+      mesh.rotation.set(range(0, Math.PI), range(0, Math.PI), range(0, Math.PI));
+      this.scene2.add(mesh);
+      this.cubes.push(mesh);
+    }
+
+    this.addLights(this.scene2);
   }
 
   async init() {
@@ -83,13 +109,13 @@ export default class Three {
     return asciiTexture;
   }
 
-  addLights() {
+  addLights(scene) {
     const light1 = new THREE.AmbientLight('#666666', 0.5);
-    this.scene.add(light1);
+    scene.add(light1);
 
-    const light2 = new THREE.DirectionalLight('#666666', 0.5);
-    light2.position.set(0.5, 0, 0.866);
-    this.scene.add(light2);
+    const light2 = new THREE.DirectionalLight('#666666', 7.5);
+    light2.position.set(1, 1, 0.866);
+    scene.add(light2);
   }
 
   addObjects() {
@@ -152,8 +178,18 @@ export default class Three {
 
     const elapsedTime = this.clock.getElapsedTime();
     this.time = elapsedTime;
+
+    // this.time += 0.01;
+    this.cubes.forEach((cube, i) => {
+      cube.rotation.x = Math.sin(this.time * cube.position.x);
+      cube.rotation.y = Math.sin(this.time * cube.position.y);
+      cube.rotation.z = Math.sin(this.time * cube.position.z);
+    });
     // this.material.uniforms.time.value = this.time;
 
+    this.renderer.setRenderTarget(this.renderTarget);
+    this.renderer.render(this.scene2, this.camera2);
+    this.renderer.setRenderTarget(null);
     this.renderer.render(this.scene, this.camera);
     requestAnimationFrame(this.render.bind(this));
   }
