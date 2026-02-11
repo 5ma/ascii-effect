@@ -25,6 +25,7 @@ export default class Three {
     this.clock = new THREE.Clock();
     this.isPlaying = true;
 
+    // this.createASCIITexture();
     this.addLights();
     this.addObjects();
     // WebGPU requires an async init before any render calls.
@@ -39,12 +40,40 @@ export default class Three {
 
   setupSettings() {
     this.settings = {
-      gamma: 2.2
+      gamma: 2.2,
+      charIndex: 0
     };
     this.gui = new GUI();
     this.gui.add(this.settings, 'gamma', 0.5, 5, 0.1).onChange((value) => {
       this.uGamma.value = value;
     });
+    this.gui.add(this.settings, 'charIndex', 0, this.length - 1, 1).onChange((value) => {
+      this.uCharIndex.value = value;
+    });
+  }
+
+  createASCIITexture() {
+    let dict = "`.-':_,^=;><+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@";
+    this.length = dict.length;
+    const cellSize = 64;
+    let canvas = document.createElement('canvas');
+    let ctx = canvas.getContext('2d');
+    canvas.width = cellSize * this.length;
+    canvas.height = cellSize;
+    // document.body.append(canvas);
+
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 40px Menlo';
+    ctx.textAlign = 'center';
+
+    for (let i = 0; i < this.length; i++) {
+      ctx.fillText(dict[i], cellSize * (i + 0.5), 45);
+    }
+
+    let asciiTexture = new THREE.CanvasTexture(canvas);
+    return asciiTexture;
   }
 
   addLights() {
@@ -58,9 +87,14 @@ export default class Three {
 
   addObjects() {
     // this.material = new THREE.MeshBasicMaterial({ color: 'red', wireframe: true });
-    const { material, uGamma } = getMaterial();
+    const asciiTexture = this.createASCIITexture();
+    const { material, uGamma, uCharIndex } = getMaterial({
+      asciiTexture,
+      length: this.length
+    });
     this.material = material;
     this.uGamma = uGamma;
+    this.uCharIndex = uCharIndex;
 
     let rows = 50;
     let columns = 50;

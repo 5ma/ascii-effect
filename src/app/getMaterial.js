@@ -27,7 +27,10 @@ import portrait from '../assets/images/025Pikachu.webp?url';
 
 const palette = ['#ffd31b', '#ff911f', '#ff2975', '#f322ff', '#8c1eff'];
 
-export default function getMaterial() {
+export default function getMaterial({
+  asciiTexture,
+  length
+}) {
   const textureLoader = new THREE.TextureLoader();
   let uTexture = textureLoader.load(portrait);
 
@@ -42,10 +45,14 @@ export default function getMaterial() {
   const uColor4 = uniform(color(palette[3]));
   const uColor5 = uniform(color(palette[4]));
   const uGamma = uniform(2.2);
+  const uCharIndex = uniform(0);
 
   const ascii = Fn(() => {
     const textureColor = texture(uTexture, attribute('aPixelUV'));
     const brightness = pow(textureColor.r, uGamma);
+
+    let asciiUv = vec2(uv().x.add(uCharIndex).div(length), uv().y);
+    const asciiCode = texture(asciiTexture, asciiUv);
     let finalColor = uColor1;
     finalColor = mix(finalColor, uColor2, step(0.2, brightness));
     finalColor = mix(finalColor, uColor3, step(0.4, brightness));
@@ -53,7 +60,8 @@ export default function getMaterial() {
     finalColor = mix(finalColor, uColor5, step(0.8, brightness));
 
     // return textureColor;
-    return vec4(finalColor, 1);
+    return asciiCode;
+    // return vec4(finalColor, 1);
     // return vec4(brightness, brightness, brightness, 1);
     // return texture(uTexture, uv());
     // return vec4(attribute('aPixelUV').x, attribute('aPixelUV').y, 0, 1);
@@ -64,5 +72,5 @@ export default function getMaterial() {
   material.colorNode = vec4(1, 0, 0, 1);
   material.outputNode = ascii();
 
-  return { material, uGamma };
+  return { material, uGamma, uCharIndex };
 }
