@@ -51,7 +51,8 @@ export default function getMaterial({
     const textureColor = texture(uTexture, attribute('aPixelUV'));
     const brightness = pow(textureColor.r, uGamma);
 
-    let asciiUv = vec2(uv().x.add(uCharIndex).div(length), uv().y);
+    let charIndex = brightness.mul(length).floor();
+    let asciiUv = vec2(uv().x.div(length).add(charIndex.div(length)), uv().y);
     const asciiCode = texture(asciiTexture, asciiUv);
     let finalColor = uColor1;
     finalColor = mix(finalColor, uColor2, step(0.2, brightness));
