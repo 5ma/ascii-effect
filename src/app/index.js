@@ -5,9 +5,11 @@ import Three from './three';
 
 document.addEventListener('DOMContentLoaded', () => {});
 
-window.addEventListener('load', () => {
-  const canvas = document.querySelector('#canvas');
-  if (canvas) {
-    return new Three(canvas);
+window.addEventListener('load', async () => {
+  const container = document.querySelector('#container');
+  if (container) {
+    const three = new Three(container);
+    await three.init();
+    return three;
   }
 });

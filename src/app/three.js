@@ -1,70 +1,71 @@
-import * as T from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-
-import fragment from '../shaders/fragment.glsl';
-import vertex from '../shaders/vertex.glsl';
-
-const device = {
-  width: window.innerWidth,
-  height: window.innerHeight,
-  pixelRatio: window.devicePixelRatio
-};
+import GUI from 'lil-gui';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import * as THREE from 'three/webgpu';
 
 export default class Three {
-  constructor(canvas) {
-    this.canvas = canvas;
+  constructor(container) {
+    this.scene = new THREE.Scene();
 
-    this.scene = new T.Scene();
+    this.container = container;
+    this.width = this.container.offsetWidth;
+    this.height = this.container.offsetHeight;
+    this.renderer = new THREE.WebGPURenderer();
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setSize(this.width, this.height);
+    this.renderer.setClearColor(0xee_ee_ee, 1);
 
-    this.camera = new T.PerspectiveCamera(75, device.width / device.height, 0.1, 100);
+    this.container.append(this.renderer.domElement);
+    this.camera = new THREE.PerspectiveCamera(70, this.width / this.height, 0.01, 1000);
+
     this.camera.position.set(0, 0, 2);
-    this.scene.add(this.camera);
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.time = 0;
+    this.clock = new THREE.Clock();
+    this.isPlaying = true;
 
-    this.renderer = new T.WebGLRenderer({
-      canvas: this.canvas,
-      alpha: true,
-      antialias: true,
-      preserveDrawingBuffer: true
-    });
-    this.renderer.setSize(device.width, device.height);
-    this.renderer.setPixelRatio(Math.min(device.pixelRatio, 2));
-
-    this.controls = new OrbitControls(this.camera, this.canvas);
-
-    this.clock = new T.Clock();
-
-    this.setLights();
-    this.setGeometry();
-    this.render();
+    this.addLights();
+    this.addObjects();
+    // WebGPU requires an async init before any render calls.
     this.setResize();
   }
 
-  setLights() {
-    this.ambientLight = new T.AmbientLight(new T.Color(1, 1, 1, 1));
-    this.scene.add(this.ambientLight);
+  async init() {
+    await this.renderer.init();
+    this.render();
   }
 
-  setGeometry() {
-    this.planeGeometry = new T.PlaneGeometry(1, 1, 128, 128);
-    this.planeMaterial = new T.ShaderMaterial({
-      side: T.DoubleSide,
-      wireframe: true,
-      fragmentShader: fragment,
-      vertexShader: vertex,
-      uniforms: {
-        progress: { type: 'f', value: 0 }
-      }
-    });
+  setupSettings() {
+    this.settings = {
+      progress: 0
+    };
+    this.gui = new GUI();
+    this.gui.add(this.settings, 'progress', 0, 1, 0.01).onChange(() => {});
+  }
 
-    this.planeMesh = new T.Mesh(this.planeGeometry, this.planeMaterial);
+  addLights() {
+    const light1 = new THREE.AmbientLight('#666666', 0.5);
+    this.scene.add(light1);
+
+    const light2 = new THREE.DirectionalLight('#666666', 0.5);
+    light2.position.set(0.5, 0, 0.866);
+    this.scene.add(light2);
+  }
+
+  addObjects() {
+    this.material = new THREE.MeshBasicMaterial({ color: 'red' });
+
+    this.planeGeometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+
+    this.planeMesh = new THREE.Mesh(this.planeGeometry, this.material);
     this.scene.add(this.planeMesh);
   }
 
   render() {
-    const elapsedTime = this.clock.getElapsedTime();
+    if (!this.isPlaying) return;
 
-    this.planeMesh.rotation.x = 0.2 * elapsedTime;
-    this.planeMesh.rotation.y = 0.1 * elapsedTime;
+    const elapsedTime = this.clock.getElapsedTime();
+    this.time = elapsedTime;
+    // this.material.uniforms.time.value = this.time;
 
     this.renderer.render(this.scene, this.camera);
     requestAnimationFrame(this.render.bind(this));
@@ -75,13 +76,11 @@ export default class Three {
   }
 
   onResize() {
-    device.width = window.innerWidth;
-    device.height = window.innerHeight;
-
-    this.camera.aspect = device.width / device.height;
+    this.width = this.container.offsetWidth;
+    this.height = this.container.offsetHeight;
+    this.renderer.setSize(this.width, this.height);
+    this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
-
-    this.renderer.setSize(device.width, device.height);
-    this.renderer.setPixelRatio(Math.min(device.pixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   }
 }

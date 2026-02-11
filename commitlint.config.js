@@ -1,1 +1,7 @@
-export default { extends: ['@commitlint/config-conventional'] };
+export default {
+  extends: ['@commitlint/config-conventional'],
+  rules: {
+    'subject-empty': [0],
+    'type-empty': [0]
+  }
+};
