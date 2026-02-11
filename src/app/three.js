@@ -2,6 +2,8 @@ import GUI from 'lil-gui';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import * as THREE from 'three/webgpu';
 
+import getMaterial from './getMaterial';
+
 export default class Three {
   constructor(container) {
     this.scene = new THREE.Scene();
@@ -17,7 +19,7 @@ export default class Three {
     this.container.append(this.renderer.domElement);
     this.camera = new THREE.PerspectiveCamera(70, this.width / this.height, 0.01, 1000);
 
-    this.camera.position.set(0, 0, 2);
+    this.camera.position.set(0, 0, 3.8);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.time = 0;
     this.clock = new THREE.Clock();
@@ -52,15 +54,48 @@ export default class Three {
   }
 
   addObjects() {
-    this.material = new THREE.MeshBasicMaterial({ color: 'red' });
+    // this.material = new THREE.MeshBasicMaterial({ color: 'red', wireframe: true });
+    this.material = getMaterial();
 
-    this.planeGeometry = new THREE.PlaneGeometry(1, 1, 1, 1);
+    let rows = 50;
+    let columns = 50;
+    let instances = rows * columns;
+    let size = 0.1;
 
-    this.planeMesh = new THREE.Mesh(this.planeGeometry, this.material);
-    this.scene.add(this.planeMesh);
+    this.geometry = new THREE.PlaneGeometry(size, size, 1, 1);
+
+    this.positions = new Float32Array(instances * 3);
+    this.colors = new Float32Array(instances * 3);
+    let uv = new Float32Array(instances * 2);
+    this.instancedMesh = new THREE.InstancedMesh(this.geometry, this.material, instances);
+
+    for (let i = 0; i < rows; i++) {
+      for (let j = 0; j < columns; j++) {
+        let index = i * columns + j;
+        uv[index * 2 + 0] = i / (rows - 1);
+        uv[index * 2 + 1] = j / (columns - 1);
+        this.positions[index * 3 + 0] = i * size - (size * (rows - 1)) / 2;
+        this.positions[index * 3 + 1] = j * size - (size * (columns - 1)) / 2;
+        this.positions[index * 3 + 2] = 0;
+
+        let m = new THREE.Matrix4();
+        m.setPosition(
+          this.positions[index * 3 + 0],
+          this.positions[index * 3 + 1],
+          this.positions[index * 3 + 2]
+        );
+        this.instancedMesh.setMatrixAt(index, m);
+        index++;
+      }
+    }
+    this.instancedMesh.instanceMatrix.needsUpdate = true;
+    this.geometry.setAttribute('aPixelUV', new THREE.InstancedBufferAttribute(uv, 2));
+
+    this.scene.add(this.instancedMesh);
+    console.log('this.instancedMesh', this.instancedMesh);
   }
 
-  render() {
+  async render() {
     if (!this.isPlaying) return;
 
     const elapsedTime = this.clock.getElapsedTime();
