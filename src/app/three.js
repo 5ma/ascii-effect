@@ -55,7 +55,7 @@ export default class Three {
   anotherScene() {
     this.scene2 = new THREE.Scene();
     this.camera2 = new THREE.PerspectiveCamera(70, this.width / this.height, 0.01, 400);
-    this.camera2.position.set(-1, 2, 3);
+    this.camera2.position.set(0, 4.5, 0);
     this.camera2.lookAt(0, 0, 0);
     this.controls2 = new OrbitControls(this.camera2, this.renderer.domElement);
     this.controls2.enableDamping = true;
@@ -160,9 +160,9 @@ export default class Three {
 
   createWaveMaterial(phase) {
     const material = new THREE.MeshStandardNodeMaterial();
-    material.color = new THREE.Color('white');
+    material.color = new THREE.Color('#f0ff1f');
     material.roughness = 0.4;
-    material.metalness = 0.0;
+    material.metalness = 0.1;
     material.side = THREE.DoubleSide;
 
     const uPhase = uniform(phase);
@@ -270,8 +270,8 @@ export default class Three {
     const light1 = new THREE.AmbientLight('#ffffff', 0.05);
     scene.add(light1);
 
-    const light2 = new THREE.DirectionalLight('#ffffff', 3);
-    light2.position.set(0.5, 5, 2);
+    const light2 = new THREE.DirectionalLight('#ffffff', 4);
+    light2.position.set(0.5, 6, 0);
     scene.add(light2);
   }
 
@@ -288,10 +288,10 @@ export default class Three {
     this.uCharIndex = uCharIndex;
     this.uColors = uColors;
 
-    let rows = 50;
+    let rows = 70;
     let columns = Math.floor(rows / this.camera.aspect);
     let instances = rows * columns;
-    let size = 0.1;
+    let size = 0.08;
 
     this.geometry = new THREE.PlaneGeometry(size, size, 1, 1);
 

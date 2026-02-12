@@ -26,7 +26,7 @@ import * as THREE from 'three/webgpu';
 
 import portrait from '../assets/images/W14-1542-250713.jpg?url';
 
-const palette = ['#6b6b6b', '#cfdc18', '#ff2975', '#f322ff', '#8c1eff'];
+const palette = ['#6b6b6b', '#e0e0e0', '#bababa', '#737373', '#8c1eff'];
 
 export default function getMaterial({
   asciiTexture, length, scene
