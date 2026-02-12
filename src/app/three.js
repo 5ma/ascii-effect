@@ -71,9 +71,9 @@ export default class Three {
     this.gui.add(this.settings, 'gamma', 0.3, 7, 0.1).onChange((value) => {
       this.uGamma.value = value;
     });
-    this.gui.add(this.settings, 'charIndex', 0, this.length - 1, 1).onChange((value) => {
-      this.uCharIndex.value = value;
-    });
+    // this.gui.add(this.settings, 'charIndex', 0, this.length - 1, 1).onChange((value) => {
+    //   this.uCharIndex.value = value;
+    // });
     const colorFolder = this.gui.addFolder('Colors');
     colorFolder.addColor(this.settings, 'color1').onChange((value) => {
       this.uColors[0].value.set(value);
@@ -142,7 +142,7 @@ export default class Three {
 
   createASCIITexture() {
     // let dict = "`.-':_,^=;>▇<+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@";
-    let dict = 'TBWA\\\\TBWAHAKUHODO\\';
+    let dict = '\\\\\\';
     // let dict = "\\\\";
     this.length = dict.length;
     const cellSize = 64;
@@ -197,10 +197,10 @@ export default class Three {
     this.uVideoScale = uVideoScale;
     this.uColors = uColors;
 
-    let rows = 70;
+    let rows = 180;
     let columns = Math.floor(rows / this.camera.aspect);
     let instances = rows * columns;
-    let size = 0.08;
+    let size = 0.05;
 
     this.geometry = new THREE.PlaneGeometry(size, size, 1, 1);
 
