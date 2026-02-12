@@ -53,7 +53,7 @@ export default function getMaterial({
 
   const ascii = Fn(() => {
     const textureColor = texture(scene, attribute('aPixelUV'));
-    const brightness = pow(textureColor.r.mul(textureColor.g), uGamma).add(attribute('aRandom').mul(0.01));
+    const brightness = pow(textureColor.r, uGamma).add(attribute('aRandom').mul(0.01));
 
     const charIndex = floor(brightness.mul(length));
     const asciiUv = vec2(

@@ -55,7 +55,8 @@ export default class Three {
   anotherScene() {
     this.scene2 = new THREE.Scene();
     this.camera2 = new THREE.PerspectiveCamera(70, this.width / this.height, 0.01, 400);
-    this.camera2.position.set(0, 0, 5.8);
+    this.camera2.position.set(-1, 2, 3);
+    this.camera2.lookAt(0, 0, 0);
     this.controls2 = new OrbitControls(this.camera2, this.renderer.domElement);
     this.controls2.enableDamping = true;
     this.controls2.target.set(0, 0, 0);
@@ -63,7 +64,7 @@ export default class Three {
     this.renderTarget = new THREE.RenderTarget(this.width, this.height);
 
     const planeSize = 6;
-    const thickness = 0.3;
+    const thickness = 1;
     const segments = 120;
     this.wave = {
       amplitude: 1,
@@ -81,8 +82,8 @@ export default class Three {
 
     this.waveGroup = new THREE.Group();
     this.waveLayers = [];
-    const layers = 4;
-    const spacing = thickness * 4;
+    const layers = 1;
+    const spacing = thickness * 2;
     const startY = -((layers - 1) * spacing) / 2;
     for (let i = 0; i < layers; i++) {
       const geometry = new THREE.BoxGeometry(planeSize, thickness, planeSize, segments, 1, segments);
@@ -120,7 +121,7 @@ export default class Three {
       waveChop: this.wave.chop
     };
     this.gui = new GUI();
-    this.gui.add(this.settings, 'gamma', 0.5, 7, 0.1).onChange((value) => {
+    this.gui.add(this.settings, 'gamma', 0.3, 7, 0.1).onChange((value) => {
       this.uGamma.value = value;
     });
     this.gui.add(this.settings, 'charIndex', 0, this.length - 1, 1).onChange((value) => {
@@ -269,8 +270,8 @@ export default class Three {
     const light1 = new THREE.AmbientLight('#ffffff', 0.05);
     scene.add(light1);
 
-    const light2 = new THREE.DirectionalLight('#ffffff', 1.5);
-    light2.position.set(1, 0, 0.866);
+    const light2 = new THREE.DirectionalLight('#ffffff', 3);
+    light2.position.set(0.5, 5, 2);
     scene.add(light2);
   }
 
