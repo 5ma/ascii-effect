@@ -71,9 +71,9 @@ export default class Three {
     this.gui.add(this.settings, 'gamma', 0.3, 7, 0.1).onChange((value) => {
       this.uGamma.value = value;
     });
-    this.gui.add(this.settings, 'charIndex', 0, this.length - 1, 1).onChange((value) => {
-      this.uCharIndex.value = value;
-    });
+    // this.gui.add(this.settings, 'charIndex', 0, this.length - 1, 1).onChange((value) => {
+    //   this.uCharIndex.value = value;
+    // });
     const colorFolder = this.gui.addFolder('Colors');
     colorFolder.addColor(this.settings, 'color1').onChange((value) => {
       this.uColors[0].value.set(value);
