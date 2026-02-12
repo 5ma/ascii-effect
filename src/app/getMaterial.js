@@ -82,5 +82,5 @@ export default function getMaterial({
   // material.outputNode = ascii();
 
 
-  return { material, uGamma, uCharIndex };
+  return { material, uGamma, uCharIndex, uColors: [uColor1, uColor2, uColor3, uColor4, uColor5] };
 }

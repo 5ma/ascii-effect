@@ -1,4 +1,5 @@
 import GUI from 'lil-gui';
+import Stats from 'stats-js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import * as THREE from 'three/webgpu';
 
@@ -21,6 +22,8 @@ export default class Three {
     this.container.append(this.renderer.domElement);
     this.camera = new THREE.PerspectiveCamera(70, this.width / this.height, 0.01, 1000);
 
+    this.setupStats();
+
     this.camera.position.set(0, 0, 3.8);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.time = 0;
@@ -39,21 +42,35 @@ export default class Three {
     this.scene2 = new THREE.Scene();
     this.camera2 = new THREE.PerspectiveCamera(70, this.width / this.height, 0.01, 400);
     this.camera2.position.set(0, 0, 5.8);
+    this.controls2 = new OrbitControls(this.camera2, this.renderer.domElement);
+    this.controls2.enableDamping = true;
+    this.controls2.target.set(0, 0, 0);
+    this.controls2.update();
     this.renderTarget = new THREE.RenderTarget(this.width, this.height);
 
-    let num = 50;
-    this.cubes = [];
-    for (let i = 0; i < num; i++) {
-      let size = range(0.5, 0.9);
-      let mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(size, size, size),
-        new THREE.MeshPhysicalMaterial({ color: 'white' })
-      );
-      mesh.position.set(range(-2, 2), range(-2, 2), range(-2, 2));
-      mesh.rotation.set(range(0, Math.PI), range(0, Math.PI), range(0, Math.PI));
-      this.scene2.add(mesh);
-      this.cubes.push(mesh);
-    }
+    const planeSize = 6;
+    const thickness = 0.3;
+    const segments = 120;
+    this.wave = {
+      amplitude: 0.35,
+      frequency: 1.6,
+      speed: 1.2,
+      thickness
+    };
+
+    this.waveGeometry = new THREE.BoxGeometry(planeSize, thickness, planeSize, segments, 1, segments);
+    this.wavePositions = this.waveGeometry.attributes.position;
+    this.waveBase = this.wavePositions.array.slice();
+
+    this.waveMesh = new THREE.Mesh(
+      this.waveGeometry,
+      new THREE.MeshStandardMaterial({
+        color: 'white',
+        roughness: 0.4,
+        metalness: 0.0
+      })
+    );
+    this.scene2.add(this.waveMesh);
 
     this.addLights(this.scene2);
   }
@@ -65,9 +82,19 @@ export default class Three {
   }
 
   setupSettings() {
+    const defaultPalette = ['#ffd31b', '#ff911f', '#ff2975', '#f322ff', '#8c1eff'];
     this.settings = {
       gamma: 0.8,
-      charIndex: 0
+      charIndex: 0,
+      color1: defaultPalette[0],
+      color2: defaultPalette[1],
+      color3: defaultPalette[2],
+      color4: defaultPalette[3],
+      color5: defaultPalette[4],
+      waveAmplitude: this.wave.amplitude,
+      waveFrequency: this.wave.frequency,
+      waveSpeed: this.wave.speed,
+      waveTwist: 0.6
     };
     this.gui = new GUI();
     this.gui.add(this.settings, 'gamma', 0.5, 7, 0.1).onChange((value) => {
@@ -76,6 +103,43 @@ export default class Three {
     this.gui.add(this.settings, 'charIndex', 0, this.length - 1, 1).onChange((value) => {
       this.uCharIndex.value = value;
     });
+    const colorFolder = this.gui.addFolder('Colors');
+    colorFolder.addColor(this.settings, 'color1').onChange((value) => {
+      this.uColors[0].value.set(value);
+    });
+    colorFolder.addColor(this.settings, 'color2').onChange((value) => {
+      this.uColors[1].value.set(value);
+    });
+    colorFolder.addColor(this.settings, 'color3').onChange((value) => {
+      this.uColors[2].value.set(value);
+    });
+    colorFolder.addColor(this.settings, 'color4').onChange((value) => {
+      this.uColors[3].value.set(value);
+    });
+    colorFolder.addColor(this.settings, 'color5').onChange((value) => {
+      this.uColors[4].value.set(value);
+    });
+    const waveFolder = this.gui.addFolder('Wave');
+    waveFolder.add(this.settings, 'waveAmplitude', 0, 1.2, 0.01);
+    waveFolder.add(this.settings, 'waveFrequency', 0.2, 4, 0.05);
+    waveFolder.add(this.settings, 'waveSpeed', 0, 4, 0.05);
+    waveFolder.add(this.settings, 'waveTwist', 0, 1, 0.01);
+  }
+
+  setupStats() {
+    this.statsFps = new Stats();
+    this.statsFps.showPanel(0);
+    this.statsFps.dom.style.left = '0px';
+    this.statsFps.dom.style.top = '0px';
+    this.statsFps.dom.style.zIndex = '10';
+    this.container.append(this.statsFps.dom);
+
+    this.statsMem = new Stats();
+    this.statsMem.showPanel(2);
+    this.statsMem.dom.style.left = '90px';
+    this.statsMem.dom.style.top = '0px';
+    this.statsMem.dom.style.zIndex = '10';
+    this.container.append(this.statsMem.dom);
   }
 
   createASCIITexture() {
@@ -122,7 +186,7 @@ export default class Three {
   addObjects() {
     // this.material = new THREE.MeshBasicMaterial({ color: 'red', wireframe: true });
     const asciiTexture = this.createASCIITexture();
-    const { material, uGamma, uCharIndex } = getMaterial({
+    const { material, uGamma, uCharIndex, uColors } = getMaterial({
       asciiTexture,
       length: this.length,
       scene: this.renderTarget.texture
@@ -130,6 +194,7 @@ export default class Three {
     this.material = material;
     this.uGamma = uGamma;
     this.uCharIndex = uCharIndex;
+    this.uColors = uColors;
 
     let rows = 50;
     let columns = Math.floor(rows / this.camera.aspect);
@@ -179,23 +244,41 @@ export default class Three {
   async render() {
     if (!this.isPlaying) return;
 
+    this.statsFps.begin();
+    this.statsMem.begin();
+
     const elapsedTime = this.clock.getElapsedTime();
     this.time = elapsedTime;
 
     // this.time += 0.01;
-    this.cubes.forEach((cube, i) => {
-      cube.rotation.x = Math.sin(this.time * cube.position.x);
-      cube.rotation.y = Math.sin(this.time * cube.position.y);
-      cube.rotation.z = Math.sin(this.time * cube.position.z);
-      cube.position.y = Math.sin(this.time + cube.position.y);
-      cube.position.y = Math.sin(this.time + i) * 3;
-    });
+    const pos = this.wavePositions;
+    const base = this.waveBase;
+    const { waveAmplitude, waveFrequency, waveSpeed, waveTwist } = this.settings;
+    for (let i = 0; i < pos.count; i++) {
+      const ix = i * 3;
+      const x = base[ix + 0];
+      const y = base[ix + 1];
+      const z = base[ix + 2];
+      const waveA = Math.sin((x * waveFrequency + this.time * waveSpeed));
+      const waveB = Math.cos((z * waveFrequency + this.time * waveSpeed * 0.9));
+      const wave = waveA * (1 - waveTwist) + waveB * waveTwist;
+      if (y > 0) {
+        pos.array[ix + 1] = y + wave * waveAmplitude;
+      } else {
+        pos.array[ix + 1] = y;
+      }
+    }
+    pos.needsUpdate = true;
+    this.waveGeometry.computeVertexNormals();
     // this.material.uniforms.time.value = this.time;
 
+    this.controls2.update();
     this.renderer.setRenderTarget(this.renderTarget);
     this.renderer.render(this.scene2, this.camera2);
     this.renderer.setRenderTarget(null);
     this.renderer.render(this.scene, this.camera);
+    this.statsFps.end();
+    this.statsMem.end();
     requestAnimationFrame(this.render.bind(this));
   }
 
@@ -209,6 +292,8 @@ export default class Three {
     this.renderer.setSize(this.width, this.height);
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
+    this.camera2.aspect = this.width / this.height;
+    this.camera2.updateProjectionMatrix();
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   }
 }
