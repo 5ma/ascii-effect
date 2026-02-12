@@ -38,7 +38,7 @@ export default class Three {
   anotherScene() {
     this.scene2 = new THREE.Scene();
     this.camera2 = new THREE.PerspectiveCamera(70, this.width / this.height, 0.01, 400);
-    this.camera2.position.set(0, 0, 3.8);
+    this.camera2.position.set(0, 0, 5.8);
     this.renderTarget = new THREE.RenderTarget(this.width, this.height);
 
     let num = 50;
@@ -66,7 +66,7 @@ export default class Three {
 
   setupSettings() {
     this.settings = {
-      gamma: 4.5,
+      gamma: 0.8,
       charIndex: 0
     };
     this.gui = new GUI();
@@ -79,7 +79,8 @@ export default class Three {
   }
 
   createASCIITexture() {
-    let dict = "`.-':_,^=;><+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@";
+    let dict = "`.-':_,^=;>▇<+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@";
+    // let dict = "\\\\";
     this.length = dict.length;
     const cellSize = 64;
     let canvas = document.createElement('canvas');
@@ -95,12 +96,12 @@ export default class Three {
     ctx.textAlign = 'center';
 
     for (let i = 0; i < this.length; i++) {
-      if (i > 50) {
-        for (let j = 0; j < 6; j++) {
-          ctx.filter = `blur(${j * 1}px)`;
-          ctx.fillText(dict[i], cellSize * (i + 0.5), 46);
-        }
-      }
+      // if (i > 50) {
+      //   for (let j = 0; j < 6; j++) {
+      //     ctx.filter = `blur(${j * 1}px)`;
+      //     ctx.fillText(dict[i], cellSize * (i + 0.5), 46);
+      //   }
+      // }
       ctx.filter = 'none';
       ctx.fillText(dict[i], cellSize * (i + 0.5), 46);
     }
@@ -110,11 +111,11 @@ export default class Three {
   }
 
   addLights(scene) {
-    const light1 = new THREE.AmbientLight('#666666', 0.5);
+    const light1 = new THREE.AmbientLight('#ffffff', 0.05);
     scene.add(light1);
 
-    const light2 = new THREE.DirectionalLight('#666666', 7.5);
-    light2.position.set(1, 1, 0.866);
+    const light2 = new THREE.DirectionalLight('#ffffff', 1.5);
+    light2.position.set(1, 0, 0.866);
     scene.add(light2);
   }
 
@@ -123,14 +124,15 @@ export default class Three {
     const asciiTexture = this.createASCIITexture();
     const { material, uGamma, uCharIndex } = getMaterial({
       asciiTexture,
-      length: this.length
+      length: this.length,
+      scene: this.renderTarget.texture
     });
     this.material = material;
     this.uGamma = uGamma;
     this.uCharIndex = uCharIndex;
 
     let rows = 50;
-    let columns = 50;
+    let columns = Math.floor(rows / this.camera.aspect);
     let instances = rows * columns;
     let size = 0.1;
 
@@ -161,11 +163,12 @@ export default class Three {
           this.positions[index * 3 + 1],
           this.positions[index * 3 + 2]
         );
-        this.instancedMesh.setMatrixAt(index, m);
+        // this.instancedMesh.setMatrixAt(index, m);
         index++;
       }
     }
-    this.instancedMesh.instanceMatrix.needsUpdate = true;
+    // this.instancedMesh.instanceMatrix.needsUpdate = true;
+    this.geometry.setAttribute('aPosition', new THREE.InstancedBufferAttribute(this.positions, 3));
     this.geometry.setAttribute('aPixelUV', new THREE.InstancedBufferAttribute(uv, 2));
     this.geometry.setAttribute('aRandom', new THREE.InstancedBufferAttribute(random, 1));
 
@@ -184,6 +187,8 @@ export default class Three {
       cube.rotation.x = Math.sin(this.time * cube.position.x);
       cube.rotation.y = Math.sin(this.time * cube.position.y);
       cube.rotation.z = Math.sin(this.time * cube.position.z);
+      cube.position.y = Math.sin(this.time + cube.position.y);
+      cube.position.y = Math.sin(this.time + i) * 3;
     });
     // this.material.uniforms.time.value = this.time;
 

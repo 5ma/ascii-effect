@@ -29,8 +29,7 @@ import portrait from '../assets/images/W14-1542-250713.jpg?url';
 const palette = ['#ffd31b', '#ff911f', '#ff2975', '#f322ff', '#8c1eff'];
 
 export default function getMaterial({
-  asciiTexture,
-  length
+  asciiTexture, length, scene
 }) {
   const textureLoader = new THREE.TextureLoader();
   let uTexture = textureLoader.load(portrait);
@@ -48,12 +47,16 @@ export default function getMaterial({
   const uGamma = uniform(1);
   const uCharIndex = uniform(0);
 
-  const ascii = Fn(() => {
-    const textureColor = texture(uTexture, attribute('aPixelUV'));
-    const brightness = pow(textureColor.r.mul(textureColor.g).mul(textureColor.b), uGamma).add(attribute('aRandom').mul(0.02));
+  const positionMath = Fn(() => {
+    return positionLocal.add(attribute('aPosition'));
+  });
 
-    let charIndex = floor(brightness.mul(length));
-    let asciiUv = vec2(
+  const ascii = Fn(() => {
+    const textureColor = texture(scene, attribute('aPixelUV'));
+    const brightness = pow(textureColor.r, uGamma).add(attribute('aRandom').mul(0.01));
+
+    const charIndex = floor(brightness.mul(length));
+    const asciiUv = vec2(
       uv().x.div(length).add(charIndex.div(length)),
       uv().y
     );
@@ -74,8 +77,10 @@ export default function getMaterial({
 
   // material.wireframe = true;
   material.side = THREE.DoubleSide;
-  material.colorNode = vec4(1, 0, 0, 1);
-  material.outputNode = ascii();
+  material.colorNode = ascii();
+  material.positionNode = positionMath();
+  // material.outputNode = ascii();
+
 
   return { material, uGamma, uCharIndex };
 }
