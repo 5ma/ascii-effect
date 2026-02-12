@@ -1,40 +1,25 @@
 import {
   attribute,
   color,
-  cross,
-  dot,
-  float,
   Fn,
-  Loop,
   mix,
-  mx_noise_float,
   positionLocal,
   pow,
-  sign,
   step,
   texture,
-  transformNormalToView,
   uniform,
   uv,
-  varying,
   vec2,
-  vec3,
-  vec4,
   floor
 } from 'three/tsl';
 import * as THREE from 'three/webgpu';
 
-import portrait from '../assets/images/W14-1542-250713.jpg?url';
-
-const palette = ['#ffd31b', '#ff911f', '#ff2975', '#f322ff', '#8c1eff'];
+// const palette = ['#6b6b6b', '#bababa', '#797979', '#2d2d2d', '#000000'];
+const palette = ['#212121', '#2d2d2d', '#797979', '#bababa', '#6b6b6b'];
 
 export default function getMaterial({
-  asciiTexture,
-  length
+  asciiTexture, length, scene, videoScale
 }) {
-  const textureLoader = new THREE.TextureLoader();
-  let uTexture = textureLoader.load(portrait);
-
   let material = new THREE.NodeMaterial({
     // wireframe: true,
     // side: THREE.DoubleSide
@@ -47,13 +32,23 @@ export default function getMaterial({
   const uColor5 = uniform(color(palette[4]));
   const uGamma = uniform(1);
   const uCharIndex = uniform(0);
+  const uVideoScale = uniform(videoScale.clone());
+
+  const positionMath = Fn(() => {
+    return positionLocal.add(attribute('aPosition'));
+  });
 
   const ascii = Fn(() => {
-    const textureColor = texture(uTexture, attribute('aPixelUV'));
-    const brightness = pow(textureColor.r.mul(textureColor.g).mul(textureColor.b), uGamma).add(attribute('aRandom').mul(0.02));
+    const pixelUv = attribute('aPixelUV');
+    const videoUv = pixelUv.sub(vec2(0.5)).div(uVideoScale).add(vec2(0.5));
+    const insideX = step(0.0, videoUv.x).mul(step(videoUv.x, 1.0));
+    const insideY = step(0.0, videoUv.y).mul(step(videoUv.y, 1.0));
+    const inside = insideX.mul(insideY);
+    const textureColor = texture(scene, videoUv);
+    const brightness = pow(textureColor.g, uGamma).add(attribute('aRandom').mul(0.01)).mul(inside);
 
-    let charIndex = floor(brightness.mul(length));
-    let asciiUv = vec2(
+    const charIndex = floor(brightness.mul(length));
+    const asciiUv = vec2(
       uv().x.div(length).add(charIndex.div(length)),
       uv().y
     );
@@ -65,17 +60,24 @@ export default function getMaterial({
     finalColor = mix(finalColor, uColor5, step(0.8, brightness));
 
     // return textureColor;
-    return asciiCode.mul(finalColor);
+    return asciiCode.mul(finalColor).mul(inside);
     // return vec4(finalColor, 1);
     // return vec4(brightness, brightness, brightness, 1);
-    // return texture(uTexture, uv());
     // return vec4(attribute('aPixelUV').x, attribute('aPixelUV').y, 0, 1);
   });
 
   // material.wireframe = true;
   material.side = THREE.DoubleSide;
-  material.colorNode = vec4(1, 0, 0, 1);
-  material.outputNode = ascii();
+  material.colorNode = ascii();
+  material.positionNode = positionMath();
+  // material.outputNode = ascii();
 
-  return { material, uGamma, uCharIndex };
+
+  return {
+    material,
+    uGamma,
+    uCharIndex,
+    uVideoScale,
+    uColors: [uColor1, uColor2, uColor3, uColor4, uColor5]
+  };
 }

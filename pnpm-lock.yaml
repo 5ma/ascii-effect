@@ -17,6 +17,9 @@ importers:
       lil-gui:
         specifier: ^0.21.0
         version: 0.21.0
+      stats-js:
+        specifier: ^1.0.1
+        version: 1.0.1
       three:
         specifier: 0.182.0
         version: 0.182.0
@@ -2575,6 +2578,9 @@ packages:
   split2@4.2.0:
     resolution: {integrity: sha512-UcjcJOWknrNkF6PLX83qcHM6KHgVKNkV62Y8a5uYDVv9ydGQVwAHMKqHdJje1VTWpljG0WYpCDhrCdAOYH4TWg==}
     engines: {node: '>= 10.x'}
+
+  stats-js@1.0.1:
+    resolution: {integrity: sha512-EAwEFghGNv8mlYC4CZzI5kWghsnP8uBKXw6VLRHtXkOk5xySfUKLTqTkjgJFfDluIkf/O7eZwi5MXP50VeTbUg==}
 
   string-argv@0.3.2:
     resolution: {integrity: sha512-aqD2Q0144Z+/RqG52NeHEkZauTAUWJO8c6yTftGJKO3Tja5tUgIfmIl6kExvhtxSDP7fXB6DvzkfMpCd/F3G+Q==}
@@ -5232,6 +5238,8 @@ snapshots:
   source-map@0.6.1: {}
 
   split2@4.2.0: {}
+
+  stats-js@1.0.1: {}
 
   string-argv@0.3.2: {}
 
