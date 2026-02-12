@@ -2,6 +2,20 @@ import GUI from 'lil-gui';
 import Stats from 'stats-js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import * as THREE from 'three/webgpu';
+import {
+  dot,
+  float,
+  mix,
+  normalize,
+  normalLocal,
+  positionLocal,
+  sin,
+  cos,
+  step,
+  uniform,
+  vec2,
+  vec3
+} from 'three/tsl';
 
 import getMaterial from './getMaterial';
 
@@ -52,25 +66,34 @@ export default class Three {
     const thickness = 0.3;
     const segments = 120;
     this.wave = {
-      amplitude: 0.35,
-      frequency: 1.6,
-      speed: 1.2,
-      thickness
+      amplitude: 1,
+      frequency: 2.0,
+      speed: 1.1,
+      thickness,
+      chop: 0.15
     };
 
-    this.waveGeometry = new THREE.BoxGeometry(planeSize, thickness, planeSize, segments, 1, segments);
-    this.wavePositions = this.waveGeometry.attributes.position;
-    this.waveBase = this.wavePositions.array.slice();
+    this.uWaveTime = uniform(0);
+    this.uWaveAmplitude = uniform(this.wave.amplitude);
+    this.uWaveFrequency = uniform(this.wave.frequency);
+    this.uWaveSpeed = uniform(this.wave.speed);
+    this.uWaveChop = uniform(this.wave.chop);
 
-    this.waveMesh = new THREE.Mesh(
-      this.waveGeometry,
-      new THREE.MeshStandardMaterial({
-        color: 'white',
-        roughness: 0.4,
-        metalness: 0.0
-      })
-    );
-    this.scene2.add(this.waveMesh);
+    this.waveGroup = new THREE.Group();
+    this.waveLayers = [];
+    const layers = 4;
+    const spacing = thickness * 4;
+    const startY = -((layers - 1) * spacing) / 2;
+    for (let i = 0; i < layers; i++) {
+      const geometry = new THREE.BoxGeometry(planeSize, thickness, planeSize, segments, 1, segments);
+      const phase = i * 0.6;
+      const material = this.createWaveMaterial(phase);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.y = startY + i * spacing;
+      this.waveGroup.add(mesh);
+      this.waveLayers.push({ mesh, material });
+    }
+    this.scene2.add(this.waveGroup);
 
     this.addLights(this.scene2);
   }
@@ -82,7 +105,7 @@ export default class Three {
   }
 
   setupSettings() {
-    const defaultPalette = ['#ffd31b', '#ff911f', '#ff2975', '#f322ff', '#8c1eff'];
+    const defaultPalette = ['#fbf6df', '#f0ff1f', '#ff2975', '#f322ff', '#8c1eff'];
     this.settings = {
       gamma: 0.8,
       charIndex: 0,
@@ -94,7 +117,7 @@ export default class Three {
       waveAmplitude: this.wave.amplitude,
       waveFrequency: this.wave.frequency,
       waveSpeed: this.wave.speed,
-      waveTwist: 0.6
+      waveChop: this.wave.chop
     };
     this.gui = new GUI();
     this.gui.add(this.settings, 'gamma', 0.5, 7, 0.1).onChange((value) => {
@@ -120,10 +143,77 @@ export default class Three {
       this.uColors[4].value.set(value);
     });
     const waveFolder = this.gui.addFolder('Wave');
-    waveFolder.add(this.settings, 'waveAmplitude', 0, 1.2, 0.01);
-    waveFolder.add(this.settings, 'waveFrequency', 0.2, 4, 0.05);
-    waveFolder.add(this.settings, 'waveSpeed', 0, 4, 0.05);
-    waveFolder.add(this.settings, 'waveTwist', 0, 1, 0.01);
+    waveFolder.add(this.settings, 'waveAmplitude', 0, 2, 0.01).onChange((value) => {
+      this.uWaveAmplitude.value = value;
+    });
+    waveFolder.add(this.settings, 'waveFrequency', 0.2, 4, 0.05).onChange((value) => {
+      this.uWaveFrequency.value = value;
+    });
+    waveFolder.add(this.settings, 'waveSpeed', 0, 4, 0.05).onChange((value) => {
+      this.uWaveSpeed.value = value;
+    });
+    waveFolder.add(this.settings, 'waveChop', 0, 1, 0.01).onChange((value) => {
+      this.uWaveChop.value = value;
+    });
+  }
+
+  createWaveMaterial(phase) {
+    const material = new THREE.MeshStandardNodeMaterial();
+    material.color = new THREE.Color('white');
+    material.roughness = 0.4;
+    material.metalness = 0.0;
+    material.side = THREE.DoubleSide;
+
+    const uPhase = uniform(phase);
+
+    const position = positionLocal;
+    const isTop = step(0.0, position.y);
+    const xz = vec2(position.x, position.z);
+    const time = this.uWaveTime;
+    const amplitude = this.uWaveAmplitude;
+    const frequency = this.uWaveFrequency;
+    const speed = this.uWaveSpeed;
+    const chop = this.uWaveChop;
+    const twoPi = float(Math.PI * 2);
+
+    const waveComponent = (dir, length, ampBase, speedBase) => {
+      const k = twoPi.div(length).mul(frequency);
+      const phaseNode = dot(dir, xz)
+        .mul(k)
+        .add(time.add(uPhase).mul(speed).mul(speedBase));
+      const sinP = sin(phaseNode);
+      const cosP = cos(phaseNode);
+      const amp = float(ampBase).mul(amplitude);
+      return {
+        height: sinP.mul(amp),
+        dhdx: cosP.mul(amp).mul(k).mul(dir.x),
+        dhdz: cosP.mul(amp).mul(k).mul(dir.y),
+        dispX: cosP.mul(amp).mul(dir.x),
+        dispZ: cosP.mul(amp).mul(dir.y)
+      };
+    };
+
+    const w1 = waveComponent(normalize(vec2(1, 0.25)), 4.8, 0.22, 0.9);
+    const w2 = waveComponent(normalize(vec2(-0.4, 0.9)), 2.6, 0.14, 1.2);
+
+    const height = w1.height.add(w2.height);
+    const dhdx = w1.dhdx.add(w2.dhdx);
+    const dhdz = w1.dhdz.add(w2.dhdz);
+    const dispX = w1.dispX.add(w2.dispX);
+    const dispZ = w1.dispZ.add(w2.dispZ);
+
+    const displaced = vec3(
+      position.x.add(dispX.mul(chop).mul(isTop)),
+      position.y.add(height.mul(isTop)),
+      position.z.add(dispZ.mul(chop).mul(isTop))
+    );
+    const normalTop = normalize(vec3(dhdx.negate(), float(1), dhdz.negate()));
+    const blendedNormal = normalize(mix(normalLocal, normalTop, isTop));
+
+    material.positionNode = displaced;
+    material.normalNode = blendedNormal;
+
+    return material;
   }
 
   setupStats() {
@@ -143,7 +233,8 @@ export default class Three {
   }
 
   createASCIITexture() {
-    let dict = "`.-':_,^=;>▇<+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@";
+    // let dict = "`.-':_,^=;>▇<+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@";
+    let dict = 'TBWA\\HAKUHODO\\';
     // let dict = "\\\\";
     this.length = dict.length;
     const cellSize = 64;
@@ -250,26 +341,7 @@ export default class Three {
     const elapsedTime = this.clock.getElapsedTime();
     this.time = elapsedTime;
 
-    // this.time += 0.01;
-    const pos = this.wavePositions;
-    const base = this.waveBase;
-    const { waveAmplitude, waveFrequency, waveSpeed, waveTwist } = this.settings;
-    for (let i = 0; i < pos.count; i++) {
-      const ix = i * 3;
-      const x = base[ix + 0];
-      const y = base[ix + 1];
-      const z = base[ix + 2];
-      const waveA = Math.sin((x * waveFrequency + this.time * waveSpeed));
-      const waveB = Math.cos((z * waveFrequency + this.time * waveSpeed * 0.9));
-      const wave = waveA * (1 - waveTwist) + waveB * waveTwist;
-      if (y > 0) {
-        pos.array[ix + 1] = y + wave * waveAmplitude;
-      } else {
-        pos.array[ix + 1] = y;
-      }
-    }
-    pos.needsUpdate = true;
-    this.waveGeometry.computeVertexNormals();
+    this.uWaveTime.value = this.time;
     // this.material.uniforms.time.value = this.time;
 
     this.controls2.update();

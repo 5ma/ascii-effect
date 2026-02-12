@@ -26,7 +26,7 @@ import * as THREE from 'three/webgpu';
 
 import portrait from '../assets/images/W14-1542-250713.jpg?url';
 
-const palette = ['#ffd31b', '#ff911f', '#ff2975', '#f322ff', '#8c1eff'];
+const palette = ['#6b6b6b', '#cfdc18', '#ff2975', '#f322ff', '#8c1eff'];
 
 export default function getMaterial({
   asciiTexture, length, scene
@@ -53,7 +53,7 @@ export default function getMaterial({
 
   const ascii = Fn(() => {
     const textureColor = texture(scene, attribute('aPixelUV'));
-    const brightness = pow(textureColor.r, uGamma).add(attribute('aRandom').mul(0.01));
+    const brightness = pow(textureColor.r.mul(textureColor.g), uGamma).add(attribute('aRandom').mul(0.01));
 
     const charIndex = floor(brightness.mul(length));
     const asciiUv = vec2(
