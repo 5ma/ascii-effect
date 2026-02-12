@@ -142,7 +142,7 @@ export default class Three {
 
   createASCIITexture() {
     // let dict = "`.-':_,^=;>▇<+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@";
-    let dict = 'TBWA\\\\TBWAHAKUHODO\\';
+    let dict = '\\\\\\';
     // let dict = "\\\\";
     this.length = dict.length;
     const cellSize = 64;
