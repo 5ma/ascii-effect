@@ -197,10 +197,10 @@ export default class Three {
     this.uVideoScale = uVideoScale;
     this.uColors = uColors;
 
-    let rows = 70;
+    let rows = 180;
     let columns = Math.floor(rows / this.camera.aspect);
     let instances = rows * columns;
-    let size = 0.08;
+    let size = 0.05;
 
     this.geometry = new THREE.PlaneGeometry(size, size, 1, 1);
 
