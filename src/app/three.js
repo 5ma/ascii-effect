@@ -2,24 +2,9 @@ import GUI from 'lil-gui';
 import Stats from 'stats-js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import * as THREE from 'three/webgpu';
-import {
-  dot,
-  float,
-  mix,
-  normalize,
-  normalLocal,
-  positionLocal,
-  sin,
-  cos,
-  step,
-  uniform,
-  vec2,
-  vec3
-} from 'three/tsl';
 
 import getMaterial from './getMaterial';
-
-const range = (min, max) => Math.random() * (max - min) + min;
+import sourceVideo from '../assets/videos/test2.mp4';
 
 export default class Three {
   constructor(container) {
@@ -28,6 +13,7 @@ export default class Three {
     this.container = container;
     this.width = this.container.offsetWidth;
     this.height = this.container.offsetHeight;
+    this.videoAspect = 1280 / 720;
     this.renderer = new THREE.WebGPURenderer();
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(this.width, this.height);
@@ -40,11 +26,9 @@ export default class Three {
 
     this.camera.position.set(0, 0, 3.8);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.time = 0;
-    this.clock = new THREE.Clock();
     this.isPlaying = true;
+    this.createVideoTexture();
 
-    this.anotherScene();
     // this.createASCIITexture();
     this.addLights(this.scene);
     this.addObjects();
@@ -52,61 +36,28 @@ export default class Three {
     this.setResize();
   }
 
-  anotherScene() {
-    this.scene2 = new THREE.Scene();
-    this.camera2 = new THREE.PerspectiveCamera(70, this.width / this.height, 0.01, 400);
-    this.camera2.position.set(0, 4.5, 0);
-    this.camera2.lookAt(0, 0, 0);
-    this.controls2 = new OrbitControls(this.camera2, this.renderer.domElement);
-    this.controls2.enableDamping = true;
-    this.controls2.target.set(0, 0, 0);
-    this.controls2.update();
-    this.renderTarget = new THREE.RenderTarget(this.width, this.height);
-
-    const planeSize = 6;
-    const thickness = 1;
-    const segments = 120;
-    this.wave = {
-      amplitude: 1,
-      frequency: 2.0,
-      speed: 1.1,
-      thickness,
-      chop: 0.15
-    };
-
-    this.uWaveTime = uniform(0);
-    this.uWaveAmplitude = uniform(this.wave.amplitude);
-    this.uWaveFrequency = uniform(this.wave.frequency);
-    this.uWaveSpeed = uniform(this.wave.speed);
-    this.uWaveChop = uniform(this.wave.chop);
-
-    this.waveGroup = new THREE.Group();
-    this.waveLayers = [];
-    const layers = 1;
-    const spacing = thickness * 2;
-    const startY = -((layers - 1) * spacing) / 2;
-    for (let i = 0; i < layers; i++) {
-      const geometry = new THREE.BoxGeometry(planeSize, thickness, planeSize, segments, 1, segments);
-      const phase = i * 0.6;
-      const material = this.createWaveMaterial(phase);
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.y = startY + i * spacing;
-      this.waveGroup.add(mesh);
-      this.waveLayers.push({ mesh, material });
-    }
-    this.scene2.add(this.waveGroup);
-
-    this.addLights(this.scene2);
-  }
-
   async init() {
     await this.renderer.init();
     this.setupSettings();
+    this.playVideo();
     this.render();
   }
 
+  playVideo() {
+    if (!this.video) return;
+    const playPromise = this.video.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => {
+        const retryPlay = () => {
+          this.video.play().catch(() => {});
+        };
+        window.addEventListener('pointerdown', retryPlay, { once: true });
+      });
+    }
+  }
+
   setupSettings() {
-    const defaultPalette = ['#fbf6df', '#f0ff1f', '#ff2975', '#f322ff', '#8c1eff'];
+    const defaultPalette = ['#212121', '#2d2d2d', '#797979', '#bababa', '#6b6b6b'];
     this.settings = {
       gamma: 0.8,
       charIndex: 0,
@@ -114,11 +65,7 @@ export default class Three {
       color2: defaultPalette[1],
       color3: defaultPalette[2],
       color4: defaultPalette[3],
-      color5: defaultPalette[4],
-      waveAmplitude: this.wave.amplitude,
-      waveFrequency: this.wave.frequency,
-      waveSpeed: this.wave.speed,
-      waveChop: this.wave.chop
+      color5: defaultPalette[4]
     };
     this.gui = new GUI();
     this.gui.add(this.settings, 'gamma', 0.3, 7, 0.1).onChange((value) => {
@@ -143,78 +90,6 @@ export default class Three {
     colorFolder.addColor(this.settings, 'color5').onChange((value) => {
       this.uColors[4].value.set(value);
     });
-    const waveFolder = this.gui.addFolder('Wave');
-    waveFolder.add(this.settings, 'waveAmplitude', 0, 2, 0.01).onChange((value) => {
-      this.uWaveAmplitude.value = value;
-    });
-    waveFolder.add(this.settings, 'waveFrequency', 0.2, 4, 0.05).onChange((value) => {
-      this.uWaveFrequency.value = value;
-    });
-    waveFolder.add(this.settings, 'waveSpeed', 0, 4, 0.05).onChange((value) => {
-      this.uWaveSpeed.value = value;
-    });
-    waveFolder.add(this.settings, 'waveChop', 0, 1, 0.01).onChange((value) => {
-      this.uWaveChop.value = value;
-    });
-  }
-
-  createWaveMaterial(phase) {
-    const material = new THREE.MeshStandardNodeMaterial();
-    material.color = new THREE.Color('#f0ff1f');
-    material.roughness = 0.4;
-    material.metalness = 0.1;
-    material.side = THREE.DoubleSide;
-
-    const uPhase = uniform(phase);
-
-    const position = positionLocal;
-    const isTop = step(0.0, position.y);
-    const xz = vec2(position.x, position.z);
-    const time = this.uWaveTime;
-    const amplitude = this.uWaveAmplitude;
-    const frequency = this.uWaveFrequency;
-    const speed = this.uWaveSpeed;
-    const chop = this.uWaveChop;
-    const twoPi = float(Math.PI * 2);
-
-    const waveComponent = (dir, length, ampBase, speedBase) => {
-      const k = twoPi.div(length).mul(frequency);
-      const phaseNode = dot(dir, xz)
-        .mul(k)
-        .add(time.add(uPhase).mul(speed).mul(speedBase));
-      const sinP = sin(phaseNode);
-      const cosP = cos(phaseNode);
-      const amp = float(ampBase).mul(amplitude);
-      return {
-        height: sinP.mul(amp),
-        dhdx: cosP.mul(amp).mul(k).mul(dir.x),
-        dhdz: cosP.mul(amp).mul(k).mul(dir.y),
-        dispX: cosP.mul(amp).mul(dir.x),
-        dispZ: cosP.mul(amp).mul(dir.y)
-      };
-    };
-
-    const w1 = waveComponent(normalize(vec2(1, 0.25)), 4.8, 0.22, 0.9);
-    const w2 = waveComponent(normalize(vec2(-0.4, 0.9)), 2.6, 0.14, 1.2);
-
-    const height = w1.height.add(w2.height);
-    const dhdx = w1.dhdx.add(w2.dhdx);
-    const dhdz = w1.dhdz.add(w2.dhdz);
-    const dispX = w1.dispX.add(w2.dispX);
-    const dispZ = w1.dispZ.add(w2.dispZ);
-
-    const displaced = vec3(
-      position.x.add(dispX.mul(chop).mul(isTop)),
-      position.y.add(height.mul(isTop)),
-      position.z.add(dispZ.mul(chop).mul(isTop))
-    );
-    const normalTop = normalize(vec3(dhdx.negate(), float(1), dhdz.negate()));
-    const blendedNormal = normalize(mix(normalLocal, normalTop, isTop));
-
-    material.positionNode = displaced;
-    material.normalNode = blendedNormal;
-
-    return material;
   }
 
   setupStats() {
@@ -233,9 +108,41 @@ export default class Three {
     this.container.append(this.statsMem.dom);
   }
 
+  createVideoTexture() {
+    this.video = document.createElement('video');
+    this.video.src = sourceVideo;
+    this.video.crossOrigin = 'anonymous';
+    this.video.loop = true;
+    this.video.muted = true;
+    this.video.autoplay = true;
+    this.video.playsInline = true;
+    this.video.preload = 'auto';
+
+    this.videoTexture = new THREE.VideoTexture(this.video);
+    this.videoTexture.colorSpace = THREE.SRGBColorSpace;
+    this.videoTexture.minFilter = THREE.LinearFilter;
+    this.videoTexture.magFilter = THREE.LinearFilter;
+    this.videoTexture.generateMipmaps = false;
+    this.videoTexture.flipY = true;
+  }
+
+  getVideoScale() {
+    const viewportAspect = this.width / this.height;
+    if (viewportAspect > this.videoAspect) {
+      return new THREE.Vector2(this.videoAspect / viewportAspect, 1);
+    }
+    return new THREE.Vector2(1, viewportAspect / this.videoAspect);
+  }
+
+  updateVideoScaleUniform() {
+    if (!this.uVideoScale) return;
+    const scale = this.getVideoScale();
+    this.uVideoScale.value.set(scale.x, scale.y);
+  }
+
   createASCIITexture() {
     // let dict = "`.-':_,^=;>▇<+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@";
-    let dict = 'TBWA\\HAKUHODO\\';
+    let dict = 'TBWA\\\\TBWAHAKUHODO\\';
     // let dict = "\\\\";
     this.length = dict.length;
     const cellSize = 64;
@@ -278,14 +185,16 @@ export default class Three {
   addObjects() {
     // this.material = new THREE.MeshBasicMaterial({ color: 'red', wireframe: true });
     const asciiTexture = this.createASCIITexture();
-    const { material, uGamma, uCharIndex, uColors } = getMaterial({
+    const { material, uGamma, uCharIndex, uVideoScale, uColors } = getMaterial({
       asciiTexture,
       length: this.length,
-      scene: this.renderTarget.texture
+      scene: this.videoTexture,
+      videoScale: this.getVideoScale()
     });
     this.material = material;
     this.uGamma = uGamma;
     this.uCharIndex = uCharIndex;
+    this.uVideoScale = uVideoScale;
     this.uColors = uColors;
 
     let rows = 70;
@@ -296,7 +205,6 @@ export default class Three {
     this.geometry = new THREE.PlaneGeometry(size, size, 1, 1);
 
     this.positions = new Float32Array(instances * 3);
-    this.colors = new Float32Array(instances * 3);
     let uv = new Float32Array(instances * 2);
     let random = new Float32Array(instances);
     this.instancedMesh = new THREE.InstancedMesh(this.geometry, this.material, instances);
@@ -313,15 +221,6 @@ export default class Three {
         this.positions[index * 3 + 0] = i * size - (size * (rows - 1)) / 2;
         this.positions[index * 3 + 1] = j * size - (size * (columns - 1)) / 2;
         this.positions[index * 3 + 2] = 0;
-
-        let m = new THREE.Matrix4();
-        m.setPosition(
-          this.positions[index * 3 + 0],
-          this.positions[index * 3 + 1],
-          this.positions[index * 3 + 2]
-        );
-        // this.instancedMesh.setMatrixAt(index, m);
-        index++;
       }
     }
     // this.instancedMesh.instanceMatrix.needsUpdate = true;
@@ -339,16 +238,6 @@ export default class Three {
     this.statsFps.begin();
     this.statsMem.begin();
 
-    const elapsedTime = this.clock.getElapsedTime();
-    this.time = elapsedTime;
-
-    this.uWaveTime.value = this.time;
-    // this.material.uniforms.time.value = this.time;
-
-    this.controls2.update();
-    this.renderer.setRenderTarget(this.renderTarget);
-    this.renderer.render(this.scene2, this.camera2);
-    this.renderer.setRenderTarget(null);
     this.renderer.render(this.scene, this.camera);
     this.statsFps.end();
     this.statsMem.end();
@@ -365,8 +254,7 @@ export default class Three {
     this.renderer.setSize(this.width, this.height);
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
-    this.camera2.aspect = this.width / this.height;
-    this.camera2.updateProjectionMatrix();
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.updateVideoScaleUniform();
   }
 }
