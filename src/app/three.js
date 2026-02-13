@@ -6,15 +6,15 @@ import * as THREE from 'three/webgpu';
 import sourceVideo from '../assets/videos/test2.mp4';
 import getMaterial from './getMaterial';
 
-const DEFAULT_ASCII_CHARS = '\\'.repeat(3);
+const DEFAULT_ASCII_CHARS = ' .:-=+*#%@';
 
 export default class Three {
   constructor(container) {
     this.scene = new THREE.Scene();
 
     this.container = container;
-    this.width = this.container.offsetWidth;
-    this.height = this.container.offsetHeight;
+    this.width = this.container.offsetWidth || window.innerWidth;
+    this.height = this.container.offsetHeight || window.innerHeight;
     this.videoAspect = 1280 / 720;
     this.renderer = new THREE.WebGPURenderer();
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -43,6 +43,7 @@ export default class Three {
   async init() {
     await this.renderer.init();
     this.setupSettings();
+    this.onResize();
     this.playVideo();
     this.render();
   }
@@ -66,6 +67,7 @@ export default class Three {
       gamma: 0.8,
       charIndex: 0,
       asciiChars: DEFAULT_ASCII_CHARS,
+      playbackRate: 1,
       uploadVideo: () => {
         this.videoInput.click();
       },
@@ -80,13 +82,20 @@ export default class Three {
       this.uGamma.value = value;
     });
     this.gui
+      .add(this.settings, 'playbackRate', 0.25, 3, 0.05)
+      .name('Playback Rate')
+      .onChange((value) => {
+        if (!this.video) return;
+        this.video.playbackRate = value;
+      });
+    this.gui
       .add(this.settings, 'asciiChars')
       .name('ASCII Chars')
       .onFinishChange((value) => {
         this.settings.asciiChars = this.normalizeAsciiChars(value);
         this.updateMaterial();
       });
-    this.gui.add(this.settings, 'uploadVideo').name('🎥Upload Video');
+    this.gui.add(this.settings, 'uploadVideo').name('Upload Video');
     // this.gui.add(this.settings, 'charIndex', 0, this.length - 1, 1).onChange((value) => {
     //   this.uCharIndex.value = value;
     // });
@@ -166,10 +175,12 @@ export default class Three {
     this.video.autoplay = true;
     this.video.playsInline = true;
     this.video.preload = 'auto';
+    this.applyVideoSettings();
     this.video.addEventListener('loadedmetadata', () => {
       if (!this.video.videoWidth || !this.video.videoHeight) return;
       this.videoAspect = this.video.videoWidth / this.video.videoHeight;
       this.updateVideoScaleUniform();
+      this.playVideo();
     });
     if (isObjectUrl) {
       this.videoObjectUrl = src;
@@ -184,6 +195,9 @@ export default class Three {
   }
 
   getVideoScale() {
+    if (!this.width || !this.height || !this.videoAspect) {
+      return new THREE.Vector2(1, 1);
+    }
     const viewportAspect = this.width / this.height;
     if (viewportAspect > this.videoAspect) {
       return new THREE.Vector2(this.videoAspect / viewportAspect, 1);
@@ -195,6 +209,11 @@ export default class Three {
     if (!this.uVideoScale) return;
     const scale = this.getVideoScale();
     this.uVideoScale.value.set(scale.x, scale.y);
+  }
+
+  applyVideoSettings() {
+    if (!this.video) return;
+    this.video.playbackRate = this.settings?.playbackRate ?? 1;
   }
 
   normalizeAsciiChars(asciiChars) {
@@ -211,6 +230,9 @@ export default class Three {
     const cellSize = 64;
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      return new THREE.CanvasTexture(canvas);
+    }
     canvas.width = cellSize * this.length;
     canvas.height = cellSize;
     // document.body.append(canvas);
