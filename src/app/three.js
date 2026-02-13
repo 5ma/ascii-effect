@@ -3,8 +3,10 @@ import Stats from 'stats-js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import * as THREE from 'three/webgpu';
 
-import getMaterial from './getMaterial';
 import sourceVideo from '../assets/videos/test2.mp4';
+import getMaterial from './getMaterial';
+
+const DEFAULT_ASCII_CHARS = '\\'.repeat(3);
 
 export default class Three {
   constructor(container) {
@@ -17,7 +19,7 @@ export default class Three {
     this.renderer = new THREE.WebGPURenderer();
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(this.width, this.height);
-    this.renderer.setClearColor(0x000000, 1);
+    this.renderer.setClearColor(0x0, 1);
 
     this.container.append(this.renderer.domElement);
     this.camera = new THREE.PerspectiveCamera(70, this.width / this.height, 0.01, 1000);
@@ -27,6 +29,8 @@ export default class Three {
     this.camera.position.set(0, 0, 3.8);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.isPlaying = true;
+    this.videoObjectUrl = null;
+    this.setupVideoInput();
     this.createVideoTexture();
 
     // this.createASCIITexture();
@@ -61,6 +65,10 @@ export default class Three {
     this.settings = {
       gamma: 0.8,
       charIndex: 0,
+      asciiChars: DEFAULT_ASCII_CHARS,
+      uploadVideo: () => {
+        this.videoInput.click();
+      },
       color1: defaultPalette[0],
       color2: defaultPalette[1],
       color3: defaultPalette[2],
@@ -71,6 +79,14 @@ export default class Three {
     this.gui.add(this.settings, 'gamma', 0.3, 7, 0.1).onChange((value) => {
       this.uGamma.value = value;
     });
+    this.gui
+      .add(this.settings, 'asciiChars')
+      .name('ASCII Chars')
+      .onFinishChange((value) => {
+        this.settings.asciiChars = this.normalizeAsciiChars(value);
+        this.updateMaterial();
+      });
+    this.gui.add(this.settings, 'uploadVideo').name('🎥Upload Video');
     // this.gui.add(this.settings, 'charIndex', 0, this.length - 1, 1).onChange((value) => {
     //   this.uCharIndex.value = value;
     // });
@@ -90,6 +106,26 @@ export default class Three {
     colorFolder.addColor(this.settings, 'color5').onChange((value) => {
       this.uColors[4].value.set(value);
     });
+    this.applySettingsToUniforms();
+  }
+
+  setupVideoInput() {
+    this.videoInput = document.createElement('input');
+    this.videoInput.type = 'file';
+    this.videoInput.accept = 'video/*';
+    this.videoInput.style.display = 'none';
+    this.videoInput.addEventListener('change', this.handleVideoUpload.bind(this));
+    this.container.append(this.videoInput);
+  }
+
+  handleVideoUpload(event) {
+    const [file] = event.target.files || [];
+    if (!file) return;
+    const uploadedVideoUrl = URL.createObjectURL(file);
+    this.createVideoTexture(uploadedVideoUrl, { isObjectUrl: true });
+    this.updateMaterial();
+    this.playVideo();
+    event.target.value = '';
   }
 
   setupStats() {
@@ -108,15 +144,36 @@ export default class Three {
     this.container.append(this.statsMem.dom);
   }
 
-  createVideoTexture() {
+  createVideoTexture(src = sourceVideo, { isObjectUrl = false } = {}) {
+    if (this.videoTexture) {
+      this.videoTexture.dispose();
+    }
+    if (this.video) {
+      this.video.pause();
+      this.video.removeAttribute('src');
+      this.video.load();
+    }
+    if (this.videoObjectUrl) {
+      URL.revokeObjectURL(this.videoObjectUrl);
+      this.videoObjectUrl = null;
+    }
+
     this.video = document.createElement('video');
-    this.video.src = sourceVideo;
+    this.video.src = src;
     this.video.crossOrigin = 'anonymous';
     this.video.loop = true;
     this.video.muted = true;
     this.video.autoplay = true;
     this.video.playsInline = true;
     this.video.preload = 'auto';
+    this.video.addEventListener('loadedmetadata', () => {
+      if (!this.video.videoWidth || !this.video.videoHeight) return;
+      this.videoAspect = this.video.videoWidth / this.video.videoHeight;
+      this.updateVideoScaleUniform();
+    });
+    if (isObjectUrl) {
+      this.videoObjectUrl = src;
+    }
 
     this.videoTexture = new THREE.VideoTexture(this.video);
     this.videoTexture.colorSpace = THREE.SRGBColorSpace;
@@ -140,14 +197,20 @@ export default class Three {
     this.uVideoScale.value.set(scale.x, scale.y);
   }
 
-  createASCIITexture() {
+  normalizeAsciiChars(asciiChars) {
+    return typeof asciiChars === 'string' && asciiChars.length > 0
+      ? asciiChars
+      : DEFAULT_ASCII_CHARS;
+  }
+
+  createASCIITexture(asciiChars = DEFAULT_ASCII_CHARS) {
     // let dict = "`.-':_,^=;>▇<+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@";
-    let dict = '\\\\\\';
+    const dict = this.normalizeAsciiChars(asciiChars);
     // let dict = "\\\\";
     this.length = dict.length;
     const cellSize = 64;
-    let canvas = document.createElement('canvas');
-    let ctx = canvas.getContext('2d');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
     canvas.width = cellSize * this.length;
     canvas.height = cellSize;
     // document.body.append(canvas);
@@ -169,8 +232,44 @@ export default class Three {
       ctx.fillText(dict[i], cellSize * (i + 0.5), 46);
     }
 
-    let asciiTexture = new THREE.CanvasTexture(canvas);
-    return asciiTexture;
+    return new THREE.CanvasTexture(canvas);
+  }
+
+  applySettingsToUniforms() {
+    if (!this.settings || !this.uGamma || !this.uColors) return;
+    this.uGamma.value = this.settings.gamma;
+    this.uColors[0].value.set(this.settings.color1);
+    this.uColors[1].value.set(this.settings.color2);
+    this.uColors[2].value.set(this.settings.color3);
+    this.uColors[3].value.set(this.settings.color4);
+    this.uColors[4].value.set(this.settings.color5);
+  }
+
+  updateMaterial() {
+    const previousMaterial = this.material;
+    const previousAsciiTexture = this.asciiTexture;
+    this.asciiTexture = this.createASCIITexture(this.settings?.asciiChars);
+    const { material, uGamma, uCharIndex, uVideoScale, uColors } = getMaterial({
+      asciiTexture: this.asciiTexture,
+      length: this.length,
+      scene: this.videoTexture,
+      videoScale: this.getVideoScale()
+    });
+    this.material = material;
+    this.uGamma = uGamma;
+    this.uCharIndex = uCharIndex;
+    this.uVideoScale = uVideoScale;
+    this.uColors = uColors;
+    if (this.instancedMesh) {
+      this.instancedMesh.material = this.material;
+    }
+    this.applySettingsToUniforms();
+    if (previousMaterial) {
+      previousMaterial.dispose();
+    }
+    if (previousAsciiTexture) {
+      previousAsciiTexture.dispose();
+    }
   }
 
   addLights(scene) {
@@ -184,18 +283,7 @@ export default class Three {
 
   addObjects() {
     // this.material = new THREE.MeshBasicMaterial({ color: 'red', wireframe: true });
-    const asciiTexture = this.createASCIITexture();
-    const { material, uGamma, uCharIndex, uVideoScale, uColors } = getMaterial({
-      asciiTexture,
-      length: this.length,
-      scene: this.videoTexture,
-      videoScale: this.getVideoScale()
-    });
-    this.material = material;
-    this.uGamma = uGamma;
-    this.uCharIndex = uCharIndex;
-    this.uVideoScale = uVideoScale;
-    this.uColors = uColors;
+    this.updateMaterial();
 
     let rows = 180;
     let columns = Math.floor(rows / this.camera.aspect);
